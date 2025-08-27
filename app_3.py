@@ -14,7 +14,7 @@ from datetime import datetime
 import pytz
 import os
 
-# Configurar la base de datos
+# Configurar la base de datos CONEXION CON RAILWAY
 # SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:klpDIaCzwlovprlGTfKmNlaxYZbtKlKo@turntable.proxy.rlwy.net:20095/railway"
 SQLALCHEMY_DATABASE_URL = os.environ["SQLALCHEMY_DATABASE_URL"]
 
@@ -40,6 +40,8 @@ def get_db():
 
 @app.get("/health", status_code=200, include_in_schema=False)
 def health_check(db=Depends(get_db)):
+    #VALIDAMOS LAS CONEXIONES CON LAS BASES DE DATOS, ES COMO UNA LUZ VERDE SIEMPRE COMO UN SEGURO
+    #SI FALLA PUES NO ACTUALIZA LA APP SE QUEDA LA VERSION FUNCIONAL ANTERIOR
     """This is the health check endpoint"""
     return {"status": "ok"}
  
@@ -127,12 +129,12 @@ def get_items(skip: int = 0, limit: int = 10):
         results = session.execute(query).fetchall()
         return [result._mapping for result in results]
 
-
+#PROCESO DE UN PROYECTO PRODUCTIVO 
 @app.post("/predict")
 async def predict_houseprice(file: UploadFile = File(...), db: Session = Depends(get_db)):
-
+    #CARGAMOS EL MODELO, EN PROYECTOS GRANDES EL MODELO ESTA EN UNSERVICIO COMO CLOUD STORAGE NO SE LEE DE LA RAIZ
     classifier = load("linear_regression.joblib")
-    
+    #IGUAL CARGAMOS LOS FEATURES DE MANERA LOCAL, ESTOS DEBERIAN SER DESDE BIG QUERY
     features_df = pd.read_csv('selected_features.csv')
     features = features_df['0'].to_list()
     
@@ -141,18 +143,18 @@ async def predict_houseprice(file: UploadFile = File(...), db: Session = Depends
     df = df[features]
     
     predictions = classifier.predict(df)
-
+    #SE ESPERA QUE LA PREDICCION FINAL CAMPOS DE EDITORIA, QUE ME DEN INFO DE LA EJECUCION
     lima_tz = pytz.timezone('America/Lima')
     now = datetime.now(lima_tz)
-    
+    #el nombre del archivo que cargamos, la prediccion y la fecha, estas son algunas columnas de editoria
     predictions_df = pd.DataFrame({
         'file_name': file.filename,
         'prediction': predictions,
         'created_at': now
     })
-    
+    #to_sql carga los datos del df a una tabla de sql, append indica que solo nuevos registros, truncate borra el anterior y coloca nuevo
     predictions_df.to_sql('predictions', con=engine, if_exists='append', index=False)
-
+    #index false es para que si tome el primer registro del csv o df
     return {
         "predictions": predictions.tolist()
     }
